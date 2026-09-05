@@ -1,0 +1,21 @@
+[package]
+org = "agent-pontifex"
+name = "agent-pontifex-lambdas"
+version = "0.1.0"
+description = "Provider-neutral cross-platform lambda runtime"
+license = "MIT"
+language = "rust"
+
+[package.repository]
+vcs = "git"
+url = "https://github.com/agent-pontifex/agent-pontifex-lambdas"
+
+[dependencies]
+"scintilla-run/scintilla-lambdas" = "^0.1.0"
+
+[targets.rust]
+dir = "."
+adapter = "rust"
+
+[scripts]
+test = "cargo test --all-targets --locked"

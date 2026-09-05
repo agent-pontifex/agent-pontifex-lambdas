@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "ores.lambda-repository.v1",
+  "organization": "agent-pontifex",
+  "repository": "agent-pontifex-lambdas",
+  "runtime": "provided.al2023",
+  "architectures": ["x86_64", "arm64"],
+  "providers": ["aws-lambda", "gcp-cloud-run", "azure-functions", "vercel", "oci", "local"],
+  "artifactContract": {
+    "zipRootExecutable": "bootstrap",
+    "compilerInRuntimeArtifactAllowed": false,
+    "sourceInRuntimeArtifactAllowed": false,
+    "credentialsInArtifactAllowed": false,
+    "exactSourceCommitRequired": true
+  },
+  "ociContract": {
+    "formats": ["docker", "oci"],
+    "architectures": ["linux/amd64", "linux/arm64"],
+    "dockerfile": "Dockerfile",
+    "containerfile": "Containerfile",
+    "multiStage": true,
+    "entrypoint": "entrypoint.sh"
+  },
+  "sharedRuntime": {
+    "package": "scintilla-run/scintilla-lambdas",
+    "manager": "zed-pkg",
+    "resolution": "exact-reviewed-release"
+  }
+}
