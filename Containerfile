@@ -2,31 +2,33 @@
 # Build one OCI image for both Docker and Podman/Buildah consumers.
 # The default binary is dependency-free; richer adapters can be selected with
 # --build-arg BINARY=worker-http --build-arg CARGO_FEATURES=http.
-ARG BUILDPLATFORM
-ARG TARGETPLATFORM
+# BUILDPLATFORM and TARGETPLATFORM are BuildKit automatic platform arguments;
+# declaring them before FROM can shadow their automatic values with empties.
 FROM --platform=$BUILDPLATFORM rust:1.88-bookworm AS builder
 ARG TARGETARCH
 ARG BINARY=oci-http
 ARG CARGO_FEATURES=
 WORKDIR /src
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates gcc-aarch64-linux-gnu gcc-x86-64-linux-gnu
+    && apt-get install -y --no-install-recommends ca-certificates gcc-aarch64-linux-gnu gcc-x86-64-linux-gnu \
+    && rm -rf /var/lib/apt/lists/*
 COPY . .
 RUN set -eux; \
+    mkdir -p /out; \
     case "$TARGETARCH" in \
       amd64) target=x86_64-unknown-linux-gnu; linker=x86_64-linux-gnu-gcc ;; \
       arm64) target=aarch64-unknown-linux-gnu; linker=aarch64-linux-gnu-gcc ;; \
       *) echo "unsupported target architecture: $TARGETARCH" >&2; exit 2 ;; \
     esac; \
     rustup target add "$target"; \
+    linker_env="CARGO_TARGET_$(printf '%s' "$target" | tr '[:lower:]-' '[:upper:]_')_LINKER=$linker"; \
     if [ -n "$CARGO_FEATURES" ]; then \
-      env "CARGO_TARGET_$(printf '%s' "$target" | tr '[:lower:]-' '[:upper:]_')_LINKER=$linker" \
-        cargo build --release --target "$target" --bin "$BINARY" --features "$CARGO_FEATURES"; \
+      env "$linker_env" cargo build --locked --release --target "$target" --bin "$BINARY" --features "$CARGO_FEATURES"; \
     else \
-      env "CARGO_TARGET_$(printf '%s' "$target" | tr '[:lower:]-' '[:upper:]_')_LINKER=$linker" \
-        cargo build --release --target "$target" --bin "$BINARY"; \
+      env "$linker_env" cargo build --locked --release --target "$target" --bin "$BINARY"; \
     fi; \
-    cp "target/$target/release/$BINARY" /out/lambda
+    cp "target/$target/release/$BINARY" /out/lambda; \
+    test -x /out/lambda
 
 FROM --platform=$TARGETPLATFORM debian:bookworm-slim AS runtime
 ARG SOURCE_REPOSITORY=https://github.com/agent-pontifex/agent-pontifex-lambdas
