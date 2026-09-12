@@ -17,21 +17,39 @@ jobs:
   contract:
     name: contract
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - name: Verify OCI contract
+          show-progress: false
+      - name: Verify exact candidate and OCI contract
+        shell: bash
         run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test -x entrypoint.sh
           test -f Dockerfile
           test -f Containerfile
+          cmp -s Dockerfile Containerfile
           test -f oci-build.json
+          python3 -m json.tool oci-build.json >/dev/null
           test -f node/handler.mjs
           test -f node/rollup.config.mjs
           grep -F '"linux/amd64"' oci-build.json
           grep -F '"linux/arm64"' oci-build.json
+          grep -F 'FROM --platform=$BUILDPLATFORM' Dockerfile
+          grep -F 'FROM --platform=$TARGETPLATFORM' Dockerfile
+          ! grep -Eq '^ARG (BUILDPLATFORM|TARGETPLATFORM)$' Dockerfile
+          grep -F 'mkdir -p /out' Dockerfile
+          grep -F 'cargo build --locked --release' Dockerfile
+      - name: Test Rust and single-file Node paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked --all-targets
+          npm --prefix node ci
+          npm --prefix node run bundle
 
   image:
     name: docker-and-oci-multi-platform
@@ -39,17 +57,32 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+          show-progress: false
+      - name: Verify exact candidate
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
+        with:
+          platforms: arm64
       - name: Set up BuildKit
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
       - name: Build Docker multi-platform image
+        shell: bash
         run: |
+          set -euo pipefail
+          mkdir -p tmp
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             --file Dockerfile \
             --tag local/lambda:oci \
+            --build-arg "VCS_REF=$GITHUB_SHA" \
             --output type=oci,dest=tmp/lambda-image.oci .
-      - name: Confirm OCI archive exists
-        run: test -s tmp/lambda-image.oci
+      - name: Confirm OCI archive structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s tmp/lambda-image.oci
+          tar -tf tmp/lambda-image.oci | grep -Eq '(^|/)index\.json$'

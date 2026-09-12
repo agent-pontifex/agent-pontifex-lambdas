@@ -39,6 +39,6 @@
     "role": "consumer",
     "package": "scintilla-run/scintilla-lambdas",
     "manager": "zed-pkg",
-    "resolution": "exact-reviewed-release"
+    "resolution": "declared-range-awaiting-immutable-lock"
   }
 }
